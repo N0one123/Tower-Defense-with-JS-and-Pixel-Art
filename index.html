@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tower Defense Game</title>
+    <style>
+      *{
+        background-color: lightblue;
+      }
+        canvas {
+            background-color: lightblue;
+            border: 2px solid black;
+            display: block;
+            margin: auto;
+        }
+      h1 {
+        color: black;
+      }
+        #towerMenu {
+            text-align: center;
+            margin: 10px;
+        }
+        .towerButton {
+            margin: 5px;
+            padding: 10px;
+            cursor: pointer;
+        }
+        button {
+          height: 8vw;
+          width: 12vw;
+          border: 5px solid blue;
+          border-radius: 20px;
+          box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+          transition: all 0.5s ease-in-out;
+        }
+      	.button:hover {
+          cursor: pointer;
+          background: #ffc000;
+          transform: translateY(-2px);
+	      box-shadow: 0 0 20px rgba(0, 0, 0, 0.4),
+                      0 0 5px #ffc000,
+                      0 0 30px #ffc000,
+                      0 0 70px #ffc000,
+				      0 0 100px #ffc000;
+       	}
+  #winPopup {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: lightgreen;
+    padding: 20px;
+    border: 10px solid green;
+    text-align: center;
+    font-size: 24px;
+}
+#losePopup {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: orangered;
+    padding: 20px;
+    border: 10px solid red;
+    text-align: center;
+    font-size: 24px;
+}
+    </style>
+</head>
+<body>
+    <h1 align="center">Tower Defense Game</h1>
+    <div id="towerMenu">
+        <button class="towerButton" onclick="selectTower('basic')">Basic Tower ($50)</button>
+        <button class="towerButton" onclick="selectTower('sniper')">Sniper Tower ($100)</button>
+        <button class="towerButton" onclick="selectTower('rapid')">Rapid-Fire Tower ($150)</button>
+    </div>
+    <span id="moneyDisplay">Money: 140</span>
+    <div id="winPopup">
+    <h2>You Won! :D</h2>
+</div>
+  <div id="losePopup">
+    <h2>You lost! :(</h2>
+  </div>
+    <canvas id="gameCanvas" width="800" height="500"></canvas>
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+
+        let towers = [];
+        let enemies = [];
+        let bullets = [];
+        let money = 140;
+        let selectedTowerType = 'basic';
+
+      function updateMoneyDisplay() {
+    document.getElementById("moneyDisplay").innerText = "Money: " + money;
+}
+
+        const pathPoints = [
+            { x: 100, y: 10 }, { x: 100, y: 250 },
+            { x: 250, y: 400 }, { x: 400, y: 400 },
+            { x: 400, y: 175 }, { x: 475, y: 100 },
+            { x: 650, y: 100 }, { x: 650, y: 10 }
+        ];
+
+        const towerTypes = {
+            basic: { cost: 50, range: 130, damage: 17, fireRate: 1.4 },
+            sniper: { cost: 100, range: 230, damage: 40, fireRate: 0.4 },
+            rapid: { cost: 150, range: 120, damage: 7, fireRate: 3.7 }
+        };
+
+
+        let pixelSize = 2; // Size of each pixel block
+        
+        function drawPixelArt(x, y, pixelArt, colors, pixelSize) {
+            for (let row = 0; row < pixelArt.length; row++) {
+                for (let col = 0; col < pixelArt[row].length; col++) {
+                    let colorIndex = pixelArt[row][col];
+                    if (colorIndex !== '.') { // Skip empty pixels
+                        ctx.fillStyle = colors[colorIndex];
+                        ctx.fillRect(x + col * pixelSize, y + row * pixelSize, pixelSize, pixelSize);
+                    }
+                }
+            }
+        }
+      const colorMap = {
+    '7': "lightgreen",// Basic Tower
+    'b': "gray",
+    '2': "red",      // Enemy body
+    '1': "white",    // Enemy eyes
+    'f': "black",
+    '3': "brown",    // Enemy details
+    '4': "orange",  // Enemy armor
+    'a': "lightgray",
+    'c': "#4B0082",
+    'd': "#FFDAB9",
+    '5': "yellow",
+    '6': "green",
+    'e': "brown",
+    '.': "transparent"
+};
+        class Bullet {
+            constructor(x, y, target, damage) {
+                this.x = x;
+                this.y = y;
+                this.target = target;
+                this.damage = damage;
+                this.speed = 5;
+            }
+            move() {
+                let dx = this.target.x - this.x;
+                let dy = this.target.y - this.y;
+                let distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance < this.speed) {
+                    this.target.health -= this.damage;
+                    return true;
+                }
+                this.x += (dx / distance) * this.speed;
+                this.y += (dy / distance) * this.speed;
+                return false;
+            }
+            draw() {
+                ctx.fillStyle = "yellow";
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+class Tower {
+    constructor(x, y, type) {
+        this.x = x;
+        this.y = y;
+        this.type = type;
+        this.range = towerTypes[type].range;
+        this.damage = towerTypes[type].damage;
+        this.fireRate = towerTypes[type].fireRate;
+        this.lastShot = 0;
+        this.angle = 0; // For rotation effect
+    }
+
+    draw() {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+
+        // Draw tower base
+        if (this.type === "basic") {
+const towerBasic = [
+    "....bb..bb..bb..bb..bb....",
+    "....bb..bb..bb..bb..bb....",
+    "....bb..bb..bb..bb..bb....",
+    "....aaaabbbbaaaabbbbaa....",
+    "....aaaabbbbaaaabbbbaa....",
+    "......bbbbaaaabbbbaa......",
+    "......bbbbaaaabbbbaa......",
+    "........aaaabbbbaa........",
+    "........aaaabbbbaa........",
+    "........aabbbbaaaa........",
+    "........aabbbbaaaa........",
+    "........bbbbaaaabb........",
+    "........bbbbaaaabb........",
+    "........bbaaaabbbb........",
+    "........bbaaaabbbb........",
+    "........aaaabbbbaa........",
+    "........aaaabbbbaa........",
+    "........aabbbbaaaa........",
+    "........aabbbbaaaa........",
+    "........bbbbaaaabb........",
+    "........bbbbaaaabb........",
+    "........bbaaaabbbb........",
+    "........bbaaaabbbb........",
+    "........aaaabbbbaa........",
+    "........aaaabbbbaa........"
+];
+          drawPixelArt(-35, -10, towerBasic, colorMap, 3)
+        } else if (this.type === "sniper") {
+const towerSniper = [
+    "................7.........",
+    "...........77...7.77......",
+    "..........7777777777......",
+    "........7777777777777.....",
+    ".......777677677777777....",
+    "......76667776777677777...",
+    ".....f67777777777777767...",
+    "...fff777777777667777777..",
+    "fffff7777777667777677777..",
+    "....77766776776777767776..",
+    "....77777777777677766776..",
+    "...6776777777766776677777.",
+    ".776666776776767776777777.",
+    ".766777776776777777766777.",
+    "7776777776776777777776667.",
+    "7777777777777776777776777.",
+    "77777777777777766667766677",
+    "76776667767777777777777767",
+    "77777767777776667777777777",
+    "77777777777777777777777777"
+];
+          drawPixelArt(-35, -20, towerSniper, colorMap, 3)
+        } else if (this.type === "rapid") {
+const towerRapid = [
+    "ff........................",
+    "fff.......ff.......ff.....",
+    "ffffffffffbbfffffffbbffff.",
+    "ffffaaaaafbbfaaaaafbbfaaaf",
+    "ffffffffffbbfffffffbbffff.",
+    "ffffaaaaafbbfaaaaafbbfaaaf",
+    "ffffffffffbbfffffffbbffff.",
+    "fff.......ff.......ff.....",
+    "ff........................"
+];
+          drawPixelArt(-35, -10, towerRapid, colorMap, 3)
+        }
+
+        // Draw rotating turret
+        ctx.rotate(this.angle);
+        ctx.fillStyle = "black";
+        ctx.fillRect(0, -5, 15, 5); // Turret barrel
+        ctx.restore();
+
+        // Range Indicator
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.range, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(0, 0, 255, 0.1)";
+        ctx.stroke();
+    }
+
+    shoot() {
+        let now = performance.now();
+        if (now - this.lastShot >= 1000 / this.fireRate) {
+            let target = enemies.find(enemy =>
+                Math.hypot(enemy.x - this.x, enemy.y - this.y) < this.range
+            );
+            if (target) {
+                this.angle = Math.atan2(target.y - this.y, target.x - this.x); // Rotate turret
+                bullets.push(new Bullet(this.x, this.y, target, this.damage));
+                this.lastShot = now;
+            }
+        }
+    }
+}
+
+      
+const enemyTypes = {
+    normal: { health: 200, speed: 1, reward: 25 },
+    fast: { health: 100, speed: 2, reward: 15 },
+    tank: { health: 400, speed: 0.75, reward: 50 },
+    boss: { health: 4000, speed: 0.6, reward: 500}
+};
+
+class Enemy {
+    constructor(type = 'normal') {
+        this.type = type;
+        this.x = pathPoints[0].x;
+        this.y = pathPoints[0].y;
+        this.health = enemyTypes[type].health;
+        this.maxHealth = this.health;
+        this.speed = enemyTypes[type].speed;
+        this.reward = enemyTypes[type].reward;
+        this.pathIndex = 0;
+    }
+
+    move() {
+        if (this.pathIndex < pathPoints.length - 1) {
+            let target = pathPoints[this.pathIndex + 1];
+            let dx = target.x - this.x;
+            let dy = target.y - this.y;
+            let distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance < this.speed) {
+                this.x = target.x;
+                this.y = target.y;
+                this.pathIndex++;
+            } else {
+                this.x += (dx / distance) * this.speed;
+                this.y += (dy / distance) * this.speed;
+            }
+        }
+    }
+
+    draw() {
+    // Define size and color based on enemy type
+    let size, color;
+    if (this.type === 'normal') {
+const normalEnemy = [
+    "....................",
+    ".......ffffff.......",
+    ".....ffeeeef2f......",
+    "....ffeeeef222f.....",
+    "....feeeffeeeef...cc",
+    "....ffffee2222ef.cdc",
+    "....fe222ffffe2fcddc",
+    "...fffffffeeeffcddc.",
+    "...ffe44ebf44ecddc..",
+    "...fee4d41fddecdc...",
+    "....feee4dddedccc...",
+    ".....ffee44e4dde....",
+    "......f222244ee.....",
+    "......f2222e2f......",
+    "......f444455f......",
+    ".......ffffff.......",
+    "........fff.........",
+    "....................",
+    "...................."
+  ]
+      drawPixelArt(this.x - 30, this.y - 20, normalEnemy, colorMap, 3)
+    } else if (this.type === 'fast') {
+const fastEnemy = [
+    "....................",
+    "b..bbbbffffff.......",
+    ".....ffeeeef2f......",
+    "b.bbffeeeef222f.....",
+    "....feeeffeeeef...cc",
+    "bbbbffffee2222ef.cdc",
+    "....fe222ffffe2fcddc",
+    "...fffffffeeeffcddc.",
+    ".bbffe44ebf44ecddc..",
+    "...fee4d41fddecdc...",
+    "....feee4dddedccc...",
+    "b.bbbffee44e4dde....",
+    "......f222244ee.....",
+    "......f2222e2f......",
+    ".b.bbbf444455f......",
+    ".......ffffff.......",
+    "........fff.........",
+    "....................",
+    "...................."
+  ]
+      drawPixelArt(this.x - 30, this.y - 20, fastEnemy, colorMap, 2.4)
+    } else if (this.type === 'tank') {
+const tankEnemy = [
+    ".......ffffffff...........",
+    "......f2ffffffff..........",
+    ".....f222ff222fffffffffff.",
+    "....f222222222f222f222222f",
+    "....f222222222f222f222222f",
+    "...f22222ff2222ffffffffff.",
+    "..ff22222ffffffff.........",
+    ".fffffffffffffffffff......",
+    "fffbbbbbbbbbbbbbbbffff....",
+    "fbb222222222222222bbbbf...",
+    "fb222222222222222222bbbf..",
+    "ffffffffffffffffffffffff..",
+    ".fbbfaafaafaaffaafaafbf...",
+    "..fbfaafaafaaffaafaaff....",
+    "...fbffbffbffbbffbfff.....",
+    "....ffffffffffffffff......"
+]
+      drawPixelArt(this.x - 30, this.y - 20, tankEnemy, colorMap, 3.4)
+    } else if (this.type === 'boss') {
+const finalBoss =[
+    "......ffffffff......",
+    "....ffffffffffff....",
+    "...ffff222222ffff...",
+    "..fff2222222222fff..",
+    ".fff222222222222fff.",
+    ".ff22222222222222ff.",
+    "fff2fff222222fff2fff",
+    "ff22222f2222f22222ff",
+    "ff2222fff22fff2222ff",
+    "ff2222ff2222ff2222ff",
+    "ff2222ff2222ff2222ff",
+    "ff2222222222222222ff",
+    "ff2222222ff2222222ff",
+    "fff2222ffffff2222fff",
+    ".ff222fff22fff222ff.",
+    ".fff22f222222f22fff.",
+    "..fff2222222222fff..",
+    "...ffff222222ffff...",
+    "....ffffffffffff....",
+    "......ffffffff......"
+]
+      drawPixelArt(this.x - 50, this.y -30, finalBoss, colorMap, 5)
+    }
+
+    // Draw enemy body
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, size, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Draw health bar
+    let healthBarWidth = 20;
+    let healthBarHeight = 4;
+    let healthRatio = this.health / this.maxHealth;
+
+    ctx.fillStyle = "black"; // Background of health bar
+    ctx.fillRect(this.x - healthBarWidth / 2, this.y - 25, healthBarWidth, healthBarHeight);
+
+    ctx.fillStyle = "green"; // Actual health
+    ctx.fillRect(this.x - healthBarWidth / 2, this.y - 25, healthBarWidth * healthRatio, healthBarHeight);
+ }
+}
+
+        function selectTower(type) {
+            selectedTowerType = type;
+        }
+      
+function spawnEnemy() {
+  let elapsedTime = (Date.now() - startTime) / 1000; // Convert to seconds
+  let allowedTypes;
+  if (enemiesDefeated < 50) {
+    allowedTypes = elapsedTime < 30 ? ["normal"] : ["normal", "fast", "tank"];
+  } else {
+    allowedTypes = ["boss"];
+  }
+  const randomType = allowedTypes[Math.floor(Math.random() * allowedTypes.length)];
+  enemies.push(new Enemy(randomType));
+}
+
+function drawTerrain() {
+  const terrain = [
+    "777776eeeeeeeee677777777777777777777777777777777777777777bffbbbfbbfffbfffb777777",
+    "777776eeeeeeeee677777777777777777777777777777777777777777bfbfbfbfbfbbbfbbb777777",
+    "777776eeeeeeeee677777777777777777777777777777777777777777bfffbfffbfffbffbb777777",
+    "777776eeeeeeeee677777777777777777777777777777777777777777bfbfbfbfbbbfbfbbb777777",
+    "777776eeeeeeeee677777777777777777777777777777777777777777bffbbfbfbfffbfffb777777",
+    "777776eeeeeeeee677777777667777777777777777666666666666666bbbbbbbbbbbbbbbbb777777",
+    "777776eeeeeeeee677777776666777777777777776eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee777777",
+    "777776eeeeeeeee67777776666667777777777776eeeeeeeeeeeeeeeeeeeeeeeeeeeee6777777777",
+    "777776eeeeeeeee6777776666666677777777776eeeeeeeeeeeeeeeeeeeeeeeeeeeeee6777777777",
+    "777776eeeeeeeee677777666666667777777776eeeeeeeeeeeeeeeeeeeeeeeeeeeeeee6777777777",
+    "777776eeeeeeeee67777776666667777777776eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee6777777777",
+    "777776eeeeeeeee6777777766667777777776eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee6777777777",
+    "777776eeeeeeeee677777777ee7777777776eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee6777777777",
+    "777776eeeeeeeee677777777ee777777776eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee6777777777",
+    "777776eeeeeeeee677777777ee777777776eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee6777777777",
+    "777776eeeeeeeee677777777ee777777776eeeeeeeeeeeeee6666666666666666666666777777777",
+    "777776eeeeeeeee677777777ee777777776eeeeeeeeeeeee67777777777777777777777777777777",
+    "777776eeeeeeeee677777777ee777777776eeeeeeeeeeee677777777777777777777777777777777",
+    "777776eeeeeeeee677777777ee777777776eeeeeeeeeee6777777777777777777777777777777777",
+    "777776eeeeeeeee67777777777777777776eeeeeeeeee67777777777777777777777777777777777",
+    "777776eeeeeeeee67777777777777777776eeeeeeeee677777766777777777777777777777777777",
+    "777776eeeeeeeeee6777777777777777776eeeeeeeee677777666677777777777777777777777777",
+    "777776eeeeeeeeeee677777777777777776eeeeeeeee677776666667777777777777777777777777",
+    "777776eeeeeeeeeeee67777777777777776eeeeeeeee677766666666777777777777777777777777",
+    "777776eeeeeeeeeeeee6777777777777776eeeeeeeee677766666666777777777777777777777777",
+    "777776eeeeeeeeeeeeee677777777777776eeeeeeeee677776666667777777777777777777777777",
+    "777776eeeeeeeeeeeeeee67777777777776eeeeeeeee677777666677777777777777777777777777",
+    "777776eeeeeeeeeeeeeeee6777777777776eeeeeeeee6777777ee777777777777777777777777777",
+    "7777776eeeeeeeeeeeeeeee677777777776eeeeeeeee6777777ee777777777777777777777777777",
+    "77777776eeeeeeeeeeeeeeee67777777776eeeeeeeee6777777ee777777777766777777777777777",
+    "777777776eeeeeeeeeeeeeeee6777777776eeeeeeeee6777777ee777777777666677777777777777",
+    "7777777776eeeeeeeeeeeeeeee677777776eeeeeeeee6777777ee777777776666667777777777777",
+    "77777777776eeeeeeeeeeeeeeee67777776eeeeeeeee677777777777777766666666777777777777",
+    "777776677776eeeeeeeeeeeeeeee6777776eeeeeeeee677777777777777766666666777777777777",
+    "7777666677776eeeeeeeeeeeeeeee666666eeeeeeeee677777777777777776666667777777777777",
+    "77766666677776eeeeeeeeeeeeeeeeeeeeeeeeeeeeee677777777777777777666677777777777777",
+    "776666666677776eeeeeeeeeeeeeeeeeeeeeeeeeeeee6777777777777777777ee777777777777777",
+    "7766666666777776eeeeeeeeeeeeeeeeeeeeeeeeeeee6777777777777777777ee777777777777777",
+    "77766666677777776eeeeeeeeeeeeeeeeeeeeeeeeeee6777777777777777777ee777777777777777",
+    "777766667777777776eeeeeeeeeeeeeeeeeeeeeeeeee6777777777777777777ee777777777777777",
+    "77777ee777777777776eeeeeeeeeeeeeeeeeeeeeeeee6777777777777777777ee777777777777777",
+    "77777ee7777777777776eeeeeeeeeeeeeeeeeeeeeeee6777777777777777777ee777777777777777",
+    "77777ee77777777777776eeeeeeeeeeeeeeeeeeeeee6777777777777777777777777777777777777",
+    "77777ee777777777777776eeeeeeeeeeeeeeeeeeee67777777777777777777777777777777777777",
+    "77777777777777777777776666666666666666666677777777777777777777777777777777777777",
+    "77777777777777777777777777777777777777777777777777777777777777777777777777777777",
+    "77777777777777777777777777777777777777777777777777777777777777777777777777777777",
+    "77777777777777777777777777777777777777777777777777777777777777777777777777777777",
+    "77777777777777777777777777777777777777777777777777777777777777777777777777777777",
+    "77777777777777777777777777777777777777777777777777777777777777777777777777777777",
+  ]
+   drawPixelArt(0, 0, terrain, colorMap, 10)
+}
+
+        function drawPath() {
+            ctx.strokeStyle = "transparent";
+            ctx.lineWidth = 10;
+            ctx.beginPath();
+            ctx.moveTo(pathPoints[0].x, pathPoints[0].y);
+            for (let i = 1; i < pathPoints.length; i++) {
+                ctx.lineTo(pathPoints[i].x, pathPoints[i].y);
+            }
+            ctx.stroke();
+        }
+      
+function checkGameOver() {
+    enemies.forEach(enemy => {
+        if (enemy.pathIndex >= pathPoints.length - 1) { // If enemy has reached the end
+            clearInterval(gameLoop);
+            document.getElementById("losePopup").style.display = "block";
+            return;
+        }
+    });
+}
+
+function showWinPopup() {
+    document.getElementById("winPopup").style.display = "block";
+}
+
+let enemiesDefeated = 0;
+let bossSpawned = false;
+
+function drawGame() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawTerrain();
+    drawPath();
+    towers.forEach(tower => {
+        tower.draw();
+        tower.shoot();
+    });
+    bullets.forEach((bullet, index) => {
+        if (bullet.move()) bullets.splice(index, 1);
+        bullet.draw();
+    });
+
+    enemies.forEach((enemy, index) => {
+        enemy.move();
+        enemy.draw();
+
+        if (enemy.health <= 0) {
+            money += enemy.reward;
+            updateMoneyDisplay();
+            enemies.splice(index, 1);
+            enemiesDefeated++; 
+
+            // Check if boss is defeated
+            if (enemy.type === "boss") {
+                showWinPopup();
+            }
+        }
+    });
+
+    if (enemiesDefeated >= 50 && !bossSpawned) {
+        spawnBoss();
+        bossSpawned = true;
+    }
+
+    checkGameOver();
+}
+
+
+
+canvas.addEventListener("click", function(event) {
+    const rect = canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+
+    // Check if clicking on an existing tower
+    for (let i = 0; i < towers.length; i++) {
+        let tower = towers[i];
+        let distance = Math.hypot(tower.x - x, tower.y - y);
+        
+        if (distance < 20) { // 15px radius for easy selection
+            money += towerTypes[tower.type].cost * 0.5; // Refund 50% of cost
+            updateMoneyDisplay();
+            towers.splice(i, 1);
+            return; // Exit function to avoid placing a new tower
+        }
+    }
+
+    // Place a new tower if enough money
+    if (money >= towerTypes[selectedTowerType].cost) {
+        towers.push(new Tower(x, y, selectedTowerType));
+        money -= towerTypes[selectedTowerType].cost;
+        updateMoneyDisplay();
+    }
+});
+
+        let startTime = Date.now();
+
+function dynamicSpawnEnemy() {
+    if (enemiesDefeated >= 50) return; // Stop spawning if boss is coming
+
+    let elapsedTime = Date.now() - startTime;
+    let spawnRate = elapsedTime < 60000 ? 10000 : 2000; // Slow at start, faster later
+
+    spawnEnemy();
+    setTimeout(dynamicSpawnEnemy, spawnRate);
+}
+
+function spawnBoss() {
+    enemies.push(new Enemy("boss"));
+}
+
+// Start the enemy spawning process
+dynamicSpawnEnemy();
+
+        const gameLoop = setInterval(drawGame, 30);
+
+    </script>
+</body>
+</html>
