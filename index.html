@@ -60,7 +60,7 @@
     transform: translate(-50%, -50%);
     background-color: orangered;
     padding: 20px;
-    border: 10px solid red;
+    border: 10px solid darkred;
     text-align: center;
     font-size: 24px;
 }
@@ -69,9 +69,9 @@
 <body>
     <h1 align="center">Tower Defense Game</h1>
     <div id="towerMenu">
-        <button class="towerButton" onclick="selectTower('basic')">Basic Tower ($50)</button>
-        <button class="towerButton" onclick="selectTower('sniper')">Sniper Tower ($100)</button>
-        <button class="towerButton" onclick="selectTower('rapid')">Rapid-Fire Tower ($150)</button>
+<button class="towerButton" data-tower-type="basic" onclick="selectTower('basic')">Basic Tower ($50)</button>
+<button class="towerButton" data-tower-type="sniper" onclick="selectTower('sniper')">Sniper Tower ($100)</button>
+<button class="towerButton" data-tower-type="rapid" onclick="selectTower('rapid')">Rapid-Fire Tower ($150)</button>
     </div>
     <span id="moneyDisplay">Money: 140</span>
     <div id="winPopup">
@@ -144,7 +144,7 @@
                 this.y = y;
                 this.target = target;
                 this.damage = damage;
-                this.speed = 5;
+                this.speed = 15;
             }
             move() {
                 let dx = this.target.x - this.x;
@@ -175,7 +175,7 @@ class Tower {
         this.damage = towerTypes[type].damage;
         this.fireRate = towerTypes[type].fireRate;
         this.lastShot = 0;
-        this.angle = 0; // For rotation effect
+        this.angle = 0;
     }
 
     draw() {
@@ -253,7 +253,7 @@ const towerRapid = [
 
         // Draw rotating turret
         ctx.rotate(this.angle);
-        ctx.fillStyle = "black";
+        ctx.fillStyle = "transparent";
         ctx.fillRect(0, -5, 15, 5); // Turret barrel
         ctx.restore();
 
@@ -503,7 +503,7 @@ function drawTerrain() {
 }
 
         function drawPath() {
-            ctx.strokeStyle = "transparent";
+            ctx.strokeStyle = "yellow";
             ctx.lineWidth = 10;
             ctx.beginPath();
             ctx.moveTo(pathPoints[0].x, pathPoints[0].y);
@@ -526,14 +526,27 @@ function checkGameOver() {
 function showWinPopup() {
     document.getElementById("winPopup").style.display = "block";
 }
-
+ 
 let enemiesDefeated = 0;
 let bossSpawned = false;
 
+function buttonGlow() {
+  const towerButtons = document.querySelectorAll('.towerButton');
+  towerButtons.forEach(button => {
+    const towerType = button.getAttribute('data-tower-type');
+    if (money < towerTypes[towerType].cost) {
+      button.style.boxShadow = "0 0 20px red";
+    } else {
+      button.style.boxShadow = "0 0 20px yellow";
+    }
+  });
+}
+      
 function drawGame() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     drawTerrain();
     drawPath();
+    buttonGlow();
     towers.forEach(tower => {
         tower.draw();
         tower.shoot();
@@ -566,6 +579,7 @@ function drawGame() {
     }
 
     checkGameOver();
+
 }
 
 
@@ -602,7 +616,7 @@ function dynamicSpawnEnemy() {
     if (enemiesDefeated >= 50) return; // Stop spawning if boss is coming
 
     let elapsedTime = Date.now() - startTime;
-    let spawnRate = elapsedTime < 60000 ? 10000 : 2000; // Slow at start, faster later
+    let spawnRate = elapsedTime < 60000 ? 10000 : 3000; // Slow at start, faster later
 
     spawnEnemy();
     setTimeout(dynamicSpawnEnemy, spawnRate);
