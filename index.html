@@ -98,14 +98,14 @@
         const pathPoints = [
             { x: 100, y: 10 }, { x: 100, y: 250 },
             { x: 250, y: 400 }, { x: 400, y: 400 },
-            { x: 400, y: 175 }, { x: 475, y: 100 },
+            { x: 400, y: 175 }, { x: 475, y: 100 }, 
             { x: 650, y: 100 }, { x: 650, y: 10 }
         ];
 
         const towerTypes = {
-            basic: { cost: 50, range: 130, damage: 17, fireRate: 1.4 },
+            basic: { cost: 50, range: 130, damage: 13, fireRate: 1.2 },
             sniper: { cost: 100, range: 230, damage: 40, fireRate: 0.4 },
-            rapid: { cost: 150, range: 120, damage: 7, fireRate: 3.7 }
+            rapid: { cost: 150, range: 120, damage: 5, fireRate: 3.7 }
         };
 
 
@@ -281,10 +281,10 @@ const towerRapid = [
 
       
 const enemyTypes = {
-    normal: { health: 200, speed: 1, reward: 25 },
-    fast: { health: 100, speed: 2, reward: 15 },
-    tank: { health: 400, speed: 0.75, reward: 50 },
-    boss: { health: 4000, speed: 0.6, reward: 500}
+    normal: { health: 200, speed: 1, reward: 20 },
+    fast: { health: 150, speed: 2, reward: 15 },
+    tank: { health: 450, speed: 0.75, reward: 35 },
+    boss: { health: 5000, speed: 0.6, reward: 500}
 };
 
 class Enemy {
@@ -408,7 +408,7 @@ const finalBoss =[
     "....ffffffffffff....",
     "......ffffffff......"
 ]
-      drawPixelArt(this.x - 50, this.y -30, finalBoss, colorMap, 5)
+      drawPixelArt(this.x - 50, this.y -50, finalBoss, colorMap, 5)
     }
 
     // Draw enemy body
@@ -416,6 +416,36 @@ const finalBoss =[
     ctx.beginPath();
     ctx.arc(this.x, this.y, size, 0, Math.PI * 2);
     ctx.fill();
+
+
+          // Enemy warning if it's on the fourth last path point
+if (this.pathIndex === pathPoints.length - 4) {
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, 40, 0, Math.PI * 2); // Adjust radius as needed
+    ctx.strokeStyle = "yellow";
+    ctx.lineWidth = 4;
+    ctx.stroke();
+}
+      
+      // Highlight enemy if it's on the third last path point
+if (this.pathIndex === pathPoints.length - 3) {
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, 40, 0, Math.PI * 2); // Adjust radius as needed
+    ctx.strokeStyle = "red";
+    ctx.lineWidth = 4;
+    ctx.stroke();
+}
+// Blinking red circle when on the second last path point
+if (this.pathIndex === pathPoints.length - 2) {
+    const blinkSpeed = 500; // blink every 500ms
+    if (Math.floor(Date.now() / blinkSpeed) % 2 === 0) {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, 40, 0, Math.PI * 2); // adjust radius as needed
+        ctx.strokeStyle = "red";
+        ctx.lineWidth = 10;
+        ctx.stroke();
+    }
+}
 
     // Draw health bar
     let healthBarWidth = 20;
